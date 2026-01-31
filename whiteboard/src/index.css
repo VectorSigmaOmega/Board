@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+body {
+    margin: 0;
+    overflow: hidden; /* Prevent scrolling */
+    background-color: #f8f9fa;
+    background-image: radial-gradient(#d1d5db 1px, transparent 1px);
+    background-size: 20px 20px; /* Spacing between dots */
+}
