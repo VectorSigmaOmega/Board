@@ -24,11 +24,11 @@ const Home = () => {
     <div className="flex items-center justify-center h-screen font-sans">
       {/* Container with white background to stand out against the dot grid */}
       <div className="bg-white p-10 rounded-xl shadow-2xl w-96 border border-gray-200">
-        <h1 className="text-4xl font-bold mb-2 text-gray-800 text-center">Whiteboard</h1>
+        <h1 className="text-4xl font-bold mb-2 text-gray-800 text-center">Board</h1>
         <p className="text-gray-500 mb-8 text-center text-sm">Real-time collaborative engineering.</p>
 
         {/* Option 1: Create */}
-        <div className="mb-8">
+        <div className="mb-4">
             <button 
                 onClick={createRoom}
                 className="w-full bg-black text-white py-3 rounded-lg font-bold hover:bg-gray-800 transition-all active:scale-95"
@@ -38,7 +38,7 @@ const Home = () => {
         </div>
 
         {/* Divider */}
-        <div className="relative flex py-2 items-center mb-6">
+        <div className="relative flex py-2 items-center mb-4">
             <div className="flex-grow border-t border-gray-300"></div>
             <span className="flex-shrink mx-4 text-gray-400 text-xs uppercase">Or Join Existing</span>
             <div className="flex-grow border-t border-gray-300"></div>
