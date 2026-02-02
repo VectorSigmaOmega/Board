@@ -4,18 +4,45 @@ import io from 'socket.io-client';
 
 const socket = io.connect("http://localhost:5000");
 
-// FIX 4: Better Color Generator (Prevents White/Light colors)
 const getUserColor = () => {
-    // Hue: 0-360 (any color)
-    // Saturation: 100% (vibrant)
-    // Lightness: 50% (ensures it is visible on white background)
     const h = Math.floor(Math.random() * 360);
     return `hsl(${h}, 100%, 50%)`;
 };
 
+// --- Helper Component: Copy Button ---
+const CopyButton = ({ textToCopy, className = "" }) => {
+    const [copied, setCopied] = useState(false);
+
+    const handleCopy = () => {
+        navigator.clipboard.writeText(textToCopy);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1000);
+    };
+
+    return (
+        <button 
+            onClick={handleCopy}
+            className={`transition-all hover:scale-110 active:scale-95 ${className}`}
+            title="Copy Room ID"
+        >
+            {copied ? (
+                // Tick Icon
+                <svg className="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+            ) : (
+                // Copy Icon
+                <svg className="w-5 h-5 text-gray-400 hover:text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+            )}
+        </button>
+    );
+};
+
 const Whiteboard = () => {
   const { roomId } = useParams();
-  const navigate = useNavigate(); // For the "Go Home" button
+  const navigate = useNavigate();
   
   const canvasRef = useRef(null);
   const ctxRef = useRef(null);
@@ -25,8 +52,10 @@ const Whiteboard = () => {
   const [usersList, setUsersList] = useState([]);
   const [isDrawing, setIsDrawing] = useState(false);
   
-  // Use HSL color now
-  const userColor = useRef(getUserColor());
+  // Validation State
+  const [inputError, setInputError] = useState(false);
+
+  const [userColor] = useState(getUserColor());
   const lastPos = useRef({ x: 0, y: 0 });
 
   useLayoutEffect(() => {
@@ -39,7 +68,7 @@ const Whiteboard = () => {
     
     ctx.lineCap = "round";
     ctx.lineWidth = 3;
-    ctx.strokeStyle = userColor.current;
+    ctx.strokeStyle = userColor;
     ctxRef.current = ctx;
 
     const handleResize = () => {
@@ -48,7 +77,7 @@ const Whiteboard = () => {
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [joined]);
+  }, [joined, userColor]);
 
   useEffect(() => {
     if (!joined) return;
@@ -109,11 +138,16 @@ const Whiteboard = () => {
   }, [joined, navigate]);
 
   const joinRoom = () => {
-    if (userName.trim() === "") return alert("Please enter a name");
+    if (userName.trim() === "") {
+        // Validation Microinteraction
+        setInputError(true);
+        setTimeout(() => setInputError(false), 200);
+        return;
+    }
     setJoined(true);
     socket.emit("join_room", { 
         name: userName, 
-        color: userColor.current,
+        color: userColor,
         roomId 
     });
   };
@@ -122,7 +156,7 @@ const Whiteboard = () => {
     if (nativeEvent.button !== 0) return;
     const { offsetX, offsetY } = nativeEvent;
     
-    ctxRef.current.strokeStyle = userColor.current;
+    ctxRef.current.strokeStyle = userColor;
     ctxRef.current.beginPath();
     ctxRef.current.moveTo(offsetX, offsetY);
     lastPos.current = { x: offsetX, y: offsetY };
@@ -141,7 +175,7 @@ const Whiteboard = () => {
       prevY: lastPos.current.y,
       currX: offsetX,
       currY: offsetY,
-      color: userColor.current,
+      color: userColor,
       roomId,
     });
 
@@ -164,50 +198,57 @@ const Whiteboard = () => {
   if (!joined) {
     return (
       <div className="flex items-center justify-center h-screen font-sans">
-        <div className="bg-white p-10 rounded-xl shadow-2xl text-center w-96 border border-gray-200">
-            <h1 className="text-3xl font-bold mb-2 text-gray-800">Join Room</h1>
-            <div className="bg-gray-100 p-2 rounded mb-6 flex justify-between items-center">
-                <span className="text-xs font-mono text-gray-500 truncate w-32">{roomId}</span>
-                <button 
-                    onClick={() => {
-                        navigator.clipboard.writeText(roomId);
-                        alert("ID Copied!");
-                    }}
-                    className="text-xs text-blue-600 font-bold hover:underline"
-                >
-                    Copy ID
-                </button>
-            </div>
-            
-            <div className="mb-6">
-                <div 
-                    className="w-16 h-16 rounded-full mx-auto mb-2 border-4 border-gray-200" 
-                    style={{ backgroundColor: userColor.current }}
-                ></div>
-                <p className="text-xs text-gray-400">Your assigned color</p>
-            </div>
-
-            <input 
-                type="text" 
-                placeholder="Enter your Name"
-                className="border-2 border-gray-200 p-3 rounded-lg w-full mb-6 text-lg focus:outline-none focus:border-blue-500"
-                value={userName}
-                onChange={(e) => setUserName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && joinRoom()}
-            />
-            <button 
-                onClick={joinRoom}
-                className="bg-black text-white px-6 py-3 rounded-lg font-bold hover:bg-gray-800 w-full transition-transform active:scale-95"
-            >
-                Enter Room
-            </button>
-             {/* FIX 2: Back Button */}
+        <div 
+            className="bg-white p-10 rounded-xl shadow-xl w-full max-w-sm border border-gray-200 flex flex-col justify-between relative" 
+            style={{ height: '480px' }}
+        >
+            {/* Back arrow */}
             <button 
                 onClick={() => navigate('/')}
-                className="mt-4 text-sm text-gray-500 hover:text-black underline"
+                className="absolute top-5 left-5 text-gray-400 hover:text-black transition-colors"
             >
-                &larr; Back to Home
+                <svg width="28" height="28" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12.5 15L7.5 10L12.5 5" />
+                </svg>
             </button>
+
+            {/* Header */}
+            <div className="text-center mt-8">
+                <h1 className="text-3xl font-bold mb-2 text-gray-800">Join Room</h1>
+                <div className="bg-gray-100 p-2 rounded flex justify-between items-center">
+                    <span className="text-xs font-mono text-gray-500">{roomId}</span>
+                    {/* Replaced Text Button with Icon Component */}
+                    <CopyButton textToCopy={roomId} />
+                </div>
+            </div>
+
+            {/* Color swatch */}
+            <div className="text-center">
+                <div 
+                    className="w-16 h-16 rounded-full mx-auto mb-2 border-4 border-gray-200 shadow-inner" 
+                    style={{ backgroundColor: userColor }}
+                ></div>
+                <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold">Your Color</p>
+            </div>
+
+            {/* Name input + Enter button */}
+            <div className="flex flex-col gap-3">
+                <input 
+                    type="text" 
+                    placeholder="Enter your Name"
+                    // Conditional Error Class
+                    className={`input-field text-center font-mono text-sm ${inputError ? 'border-black ring-1 ring-black' : ''}`}
+                    value={userName}
+                    onChange={(e) => setUserName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && joinRoom()}
+                />
+                <button 
+                    onClick={joinRoom}
+                    className="btn-primary"
+                >
+                    Enter Room
+                </button>
+            </div>
         </div>
       </div>
     );
@@ -217,11 +258,10 @@ const Whiteboard = () => {
     <div className="relative w-full h-screen overflow-hidden">
       {/* Toolbar */}
       <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-white px-6 py-2 rounded-full shadow-xl border border-gray-200 z-50 flex gap-4 items-center">
-        <div className="w-6 h-6 rounded-full border border-gray-300" style={{ backgroundColor: userColor.current }}></div>
+        <div className="w-6 h-6 rounded-full border border-gray-300" style={{ backgroundColor: userColor }}></div>
         <div className="border-l border-gray-300 h-6"></div>
         <button className="p-2 hover:bg-gray-100 rounded-full text-red-500 font-bold transition-colors" onClick={clearCanvas}>🗑️ Clear Board</button>
         <div className="border-l border-gray-300 h-6"></div>
-        {/* FIX 2: Exit Button */}
         <button className="p-2 hover:bg-gray-100 rounded-full text-gray-500 font-bold transition-colors" onClick={() => navigate('/')}>Exit</button>
       </div>
 
@@ -231,22 +271,15 @@ const Whiteboard = () => {
             {usersList.map((u, index) => (
                 <div key={index} className="flex items-center gap-2 text-sm text-gray-700">
                     <span className="w-3 h-3 rounded-full shrink-0" style={{backgroundColor: u.color}}></span>
-                    <span className="truncate max-w-[100px]">{u.name} {u.name === userName ? "(You)" : ""}</span>
+                    <span className="truncate max-w-25">{u.name} {u.name === userName ? "(You)" : ""}</span>
                 </div>
             ))}
         </div>
         
-        {/* FIX 3: Copy ID Only */}
-        <div className="mt-4 pt-3 border-t border-gray-100">
-             <button 
-                onClick={() => {
-                    navigator.clipboard.writeText(roomId);
-                    alert("Room ID Copied!");
-                }}
-                className="text-xs text-blue-500 hover:text-blue-700 font-bold w-full text-left"
-            >
-                📋 Copy Room ID
-            </button>
+        <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between items-center">
+             <span className="text-xs font-bold text-gray-400 uppercase">Room ID</span>
+             {/* Replaced Text Button with Icon Component */}
+             <CopyButton textToCopy={roomId} />
         </div>
       </div>
 
