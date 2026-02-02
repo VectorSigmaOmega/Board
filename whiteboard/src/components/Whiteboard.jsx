@@ -1,40 +1,28 @@
 import React, { useRef, useState, useEffect, useLayoutEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import io from 'socket.io-client';
+import { v4 as uuidv4 } from 'uuid';
 
 const socket = io.connect("http://localhost:5000");
 
+// ... (Keep getUserColor and CopyButton helper functions exactly as they were) ...
 const getUserColor = () => {
     const h = Math.floor(Math.random() * 360);
     return `hsl(${h}, 100%, 50%)`;
 };
-
-// --- Helper Component: Copy Button ---
 const CopyButton = ({ textToCopy, className = "" }) => {
     const [copied, setCopied] = useState(false);
-
     const handleCopy = () => {
         navigator.clipboard.writeText(textToCopy);
         setCopied(true);
         setTimeout(() => setCopied(false), 1000);
     };
-
     return (
-        <button 
-            onClick={handleCopy}
-            className={`transition-all hover:scale-110 active:scale-95 ${className}`}
-            title="Copy Room ID"
-        >
+        <button onClick={handleCopy} className={`transition-all hover:scale-110 active:scale-95 ${className}`}>
             {copied ? (
-                // Tick Icon
-                <svg className="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
+                <svg className="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
             ) : (
-                // Copy Icon
-                <svg className="w-5 h-5 text-gray-400 hover:text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
+                <svg className="w-5 h-5 text-gray-400 hover:text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
             )}
         </button>
     );
@@ -51,21 +39,24 @@ const Whiteboard = () => {
   const [userName, setUserName] = useState("");
   const [usersList, setUsersList] = useState([]);
   const [isDrawing, setIsDrawing] = useState(false);
-  
-  // Validation State
-  const [inputError, setInputError] = useState(false);
-
   const [userColor] = useState(getUserColor());
+  
+  // UX STATES
+  const [inputError, setInputError] = useState(false); // For red flash
+  const [errorType, setErrorType] = useState(""); 
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+
   const lastPos = useRef({ x: 0, y: 0 });
+  const currentStrokeId = useRef(null);
+  const batchRef = useRef([]); 
 
   useLayoutEffect(() => {
     if (!joined) return;
-
     const canvas = canvasRef.current;
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
     const ctx = canvas.getContext('2d');
-    
     ctx.lineCap = "round";
     ctx.lineWidth = 3;
     ctx.strokeStyle = userColor;
@@ -80,46 +71,60 @@ const Whiteboard = () => {
   }, [joined, userColor]);
 
   useEffect(() => {
+    if(!joined) return;
+    const interval = setInterval(() => {
+        if (batchRef.current.length > 0) {
+            socket.emit("draw_batch", { roomId, batch: batchRef.current });
+            batchRef.current = []; 
+        }
+    }, 60);
+    return () => clearInterval(interval);
+  }, [joined, roomId]);
+
+  useEffect(() => {
+    // We listen for join errors BEFORE we are strictly "joined" in the UI sense
+    socket.on("join_error", () => {
+        setJoined(false);
+        setErrorType("DUPLICATE"); 
+        setInputError(true); // Trigger red flash
+        setTimeout(() => {
+            setInputError(false);
+            setErrorType("");
+        }, 200);
+    });
+
     if (!joined) return;
 
-    socket.on("load_history", (history) => {
+    const drawLine = (item) => {
+        if(!ctxRef.current) return;
         const ctx = ctxRef.current;
-        if(!ctx) return;
-        history.forEach(item => {
-            const originalColor = ctx.strokeStyle;
-            ctx.strokeStyle = item.color;
-            ctx.beginPath();
-            ctx.moveTo(item.prevX, item.prevY);
-            ctx.lineTo(item.currX, item.currY);
-            ctx.stroke();
-            ctx.strokeStyle = originalColor;
-        });
-    });
+        const originalColor = ctx.strokeStyle;
+        ctx.strokeStyle = item.color;
+        ctx.beginPath();
+        ctx.moveTo(item.prevX, item.prevY);
+        ctx.lineTo(item.currX, item.currY);
+        ctx.stroke();
+        ctx.strokeStyle = originalColor;
+    };
 
-    socket.on("draw_line", (data) => {
-      const { prevX, prevY, currX, currY, color } = data;
-      const ctx = ctxRef.current;
-      if (!ctx) return;
-
-      const originalColor = ctx.strokeStyle;
-      ctx.strokeStyle = color;
-      ctx.beginPath();
-      ctx.moveTo(prevX, prevY);
-      ctx.lineTo(currX, currY);
-      ctx.stroke();
-      ctx.strokeStyle = originalColor;
-    });
-
-    socket.on("clear_canvas", () => {
+    socket.on("load_history", (history) => history.forEach(drawLine));
+    socket.on("draw_batch", (batch) => batch.forEach(drawLine));
+    
+    socket.on("refresh_board", (fullHistory) => {
         const canvas = canvasRef.current;
-        if (canvas) {
-            const ctx = canvas.getContext('2d');
+        const ctx = ctxRef.current;
+        if (canvas && ctx) {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            fullHistory.forEach(drawLine);
         }
     });
 
-    socket.on("update_users", (data) => {
-        setUsersList(data);
+    socket.on("update_users", (data) => setUsersList(data));
+    
+    // NEW: Listen for button states
+    socket.on("interaction_state", ({ canUndo, canRedo }) => {
+        setCanUndo(canUndo);
+        setCanRedo(canRedo);
     });
 
     socket.on("room_full", () => {
@@ -129,27 +134,29 @@ const Whiteboard = () => {
     });
     
     return () => {
-        socket.off("draw_line");
-        socket.off("clear_canvas");
+        socket.off("draw_batch");
+        socket.off("refresh_board");
         socket.off("update_users");
         socket.off("load_history");
         socket.off("room_full");
+        socket.off("join_error");
+        socket.off("interaction_state");
     };
   }, [joined, navigate]);
 
   const joinRoom = () => {
     if (userName.trim() === "") {
-        // Validation Microinteraction
+        setErrorType("EMPTY"); 
         setInputError(true);
-        setTimeout(() => setInputError(false), 200);
+        setTimeout(() => {
+            setInputError(false);
+            setErrorType("");
+        }, 200);
         return;
     }
-    setJoined(true);
-    socket.emit("join_room", { 
-        name: userName, 
-        color: userColor,
-        roomId 
-    });
+    // Optimistically set joined, but server might reject with "join_error"
+    setJoined(true); 
+    socket.emit("join_room", { name: userName, color: userColor, roomId });
   };
 
   const startDrawing = ({ nativeEvent }) => {
@@ -159,7 +166,9 @@ const Whiteboard = () => {
     ctxRef.current.strokeStyle = userColor;
     ctxRef.current.beginPath();
     ctxRef.current.moveTo(offsetX, offsetY);
+    
     lastPos.current = { x: offsetX, y: offsetY };
+    currentStrokeId.current = uuidv4(); 
     setIsDrawing(true);
   };
 
@@ -170,13 +179,13 @@ const Whiteboard = () => {
     ctxRef.current.lineTo(offsetX, offsetY);
     ctxRef.current.stroke();
 
-    socket.emit("draw_line", {
+    batchRef.current.push({
       prevX: lastPos.current.x,
       prevY: lastPos.current.y,
       currX: offsetX,
       currY: offsetY,
       color: userColor,
-      roomId,
+      strokeId: currentStrokeId.current 
     });
 
     lastPos.current = { x: offsetX, y: offsetY };
@@ -187,84 +196,83 @@ const Whiteboard = () => {
     setIsDrawing(false);
   };
   
-  const clearCanvas = () => {
-    const canvas = canvasRef.current;
-    const ctx = ctxRef.current;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    socket.emit("clear_canvas", roomId);
-  };
+  const undo = () => canUndo && socket.emit("undo", { roomId });
+  const redo = () => canRedo && socket.emit("redo", { roomId });
+  const clearMyCanvas = () => socket.emit("clear_my_canvas", roomId);
 
-  // --- RENDER ---
   if (!joined) {
-    return (
-      <div className="flex items-center justify-center h-screen font-sans">
-        <div 
-            className="bg-white p-10 rounded-xl shadow-xl w-full max-w-sm border border-gray-200 flex flex-col justify-between relative" 
-            style={{ height: '480px' }}
-        >
-            {/* Back arrow */}
-            <button 
-                onClick={() => navigate('/')}
-                className="absolute top-5 left-5 text-gray-400 hover:text-black transition-colors"
-            >
-                <svg width="28" height="28" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12.5 15L7.5 10L12.5 5" />
-                </svg>
+      return (
+        <div className="flex items-center justify-center h-screen font-sans">
+        <div className="bg-white p-10 rounded-xl shadow-xl w-full max-w-sm border border-gray-200 flex flex-col justify-between relative" style={{ height: '480px' }}>
+            <button onClick={() => navigate('/')} className="absolute top-5 left-5 text-gray-400 hover:text-black transition-colors">
+                <svg width="28" height="28" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.5 15L7.5 10L12.5 5" /></svg>
             </button>
-
-            {/* Header */}
             <div className="text-center mt-8">
                 <h1 className="text-3xl font-bold mb-2 text-gray-800">Join Room</h1>
                 <div className="bg-gray-100 p-2 rounded flex justify-between items-center">
                     <span className="text-xs font-mono text-gray-500">{roomId}</span>
-                    {/* Replaced Text Button with Icon Component */}
                     <CopyButton textToCopy={roomId} />
                 </div>
             </div>
-
-            {/* Color swatch */}
             <div className="text-center">
-                <div 
-                    className="w-16 h-16 rounded-full mx-auto mb-2 border-4 border-gray-200 shadow-inner" 
-                    style={{ backgroundColor: userColor }}
-                ></div>
+                <div className="w-16 h-16 rounded-full mx-auto mb-2 border-4 border-gray-200 shadow-inner" style={{ backgroundColor: userColor }}></div>
                 <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold">Your Color</p>
             </div>
-
-            {/* Name input + Enter button */}
             <div className="flex flex-col gap-3">
                 <input 
                     type="text" 
-                    placeholder="Enter your Name"
-                    // Conditional Error Class
-                    className={`input-field text-center font-mono text-sm ${inputError ? 'border-black ring-1 ring-black' : ''}`}
-                    value={userName}
-                    onChange={(e) => setUserName(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && joinRoom()}
+                    placeholder="Enter your Name" 
+                    className={`
+                        input-field text-center font-mono text-sm transition-all duration-75
+                        ${inputError && errorType === "EMPTY" ? 'border-black ring-1 ring-black' : ''}
+                        ${inputError && errorType === "DUPLICATE" ? 'border-red-500 ring-2 ring-red-500 animate-pulse text-red-500' : ''}
+                    `}
+                    value={userName} 
+                    onChange={(e) => setUserName(e.target.value)} 
+                    onKeyDown={(e) => e.key === 'Enter' && joinRoom()} 
                 />
-                <button 
-                    onClick={joinRoom}
-                    className="btn-primary"
-                >
-                    Enter Room
-                </button>
+                <button onClick={joinRoom} className="btn-primary">Enter Room</button>
             </div>
         </div>
       </div>
-    );
+      );
   }
 
   return (
     <div className="relative w-full h-screen overflow-hidden">
-      {/* Toolbar */}
       <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-white px-6 py-2 rounded-full shadow-xl border border-gray-200 z-50 flex gap-4 items-center">
         <div className="w-6 h-6 rounded-full border border-gray-300" style={{ backgroundColor: userColor }}></div>
         <div className="border-l border-gray-300 h-6"></div>
-        <button className="p-2 hover:bg-gray-100 rounded-full text-red-500 font-bold transition-colors" onClick={clearCanvas}>🗑️ Clear Board</button>
+        
+        {/* Undo Button with Dynamic Styling */}
+        <button 
+            className={`p-2 rounded-full font-bold transition-colors ${canUndo ? 'hover:bg-gray-100 text-gray-600' : 'text-gray-300 cursor-not-allowed'}`} 
+            onClick={undo} 
+            disabled={!canUndo}
+            title="Undo"
+        >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+        </button>
+        
+        {/* Redo Button with Dynamic Styling */}
+        <button 
+            className={`p-2 rounded-full font-bold transition-colors ${canRedo ? 'hover:bg-gray-100 text-gray-600' : 'text-gray-300 cursor-not-allowed'}`} 
+            onClick={redo} 
+            disabled={!canRedo}
+            title="Redo"
+        >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" /></svg>
+        </button>
+        
+        <div className="border-l border-gray-300 h-6"></div>
+        <button className="p-2 hover:bg-red-50 text-red-500 rounded-full font-bold transition-colors flex items-center gap-2 text-xs uppercase tracking-wider" onClick={clearMyCanvas}>
+            🗑️ Clear My Drawing
+        </button>
         <div className="border-l border-gray-300 h-6"></div>
         <button className="p-2 hover:bg-gray-100 rounded-full text-gray-500 font-bold transition-colors" onClick={() => navigate('/')}>Exit</button>
       </div>
 
+      {/* Online Users List */}
       <div className="fixed top-4 left-4 bg-white/90 backdrop-blur-sm p-4 rounded-xl shadow-lg border border-gray-200 z-40">
         <h3 className="font-bold text-gray-500 text-xs uppercase mb-3 tracking-wider">Online ({usersList.length})</h3>
         <div className="flex flex-col gap-2 max-h-48 overflow-y-auto">
@@ -275,10 +283,8 @@ const Whiteboard = () => {
                 </div>
             ))}
         </div>
-        
         <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between items-center">
              <span className="text-xs font-bold text-gray-400 uppercase">Room ID</span>
-             {/* Replaced Text Button with Icon Component */}
              <CopyButton textToCopy={roomId} />
         </div>
       </div>
