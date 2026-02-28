@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import io from 'socket.io-client';
 import { v4 as uuidv4 } from 'uuid';
 
-const socket = io.connect("http://localhost:5000");
+const socket = io.connect(import.meta.env.VITE_SERVER_URL || "http://localhost:5000");
 
 // ... (Keep getUserColor and CopyButton helper functions exactly as they were) ...
 const getUserColor = () => {
