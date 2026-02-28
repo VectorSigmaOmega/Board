@@ -12,11 +12,30 @@ const getUserColor = () => {
 };
 const CopyButton = ({ textToCopy, className = "" }) => {
     const [copied, setCopied] = useState(false);
-    const handleCopy = () => {
-        navigator.clipboard.writeText(textToCopy);
-        setCopied(true);
+    
+    const handleCopy = async () => {
+    const text = textToCopy;
+    if (navigator.clipboard && window.isSecureContext) {
+            // Use modern API if available
+            await navigator.clipboard.writeText(text);
+            setCopied(true);
+        } else {
+            // Fallback for HTTP/Non-secure contexts
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                setCopied(true);
+            } catch (err) {
+                console.error('Fallback copy failed', err);
+            }
+            document.body.removeChild(textArea);
+        }
         setTimeout(() => setCopied(false), 1000);
     };
+
     return (
         <button onClick={handleCopy} className={`transition-all hover:scale-110 active:scale-95 ${className}`}>
             {copied ? (
