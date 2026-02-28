@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect, useLayoutEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import io from 'socket.io-client';
 import { v4 as uuidv4 } from 'uuid';
+import { Trash2, LogOut, Undo2, Redo2 } from 'lucide-react';
 
 const socket = io.connect(import.meta.env.VITE_SERVER_URL || "http://localhost:5000");
 
@@ -270,7 +271,7 @@ const Whiteboard = () => {
             disabled={!canUndo}
             title="Undo"
         >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+            <Undo2 size={20} />
         </button>
         
         {/* Redo Button with Dynamic Styling */}
@@ -280,15 +281,25 @@ const Whiteboard = () => {
             disabled={!canRedo}
             title="Redo"
         >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" /></svg>
+            <Redo2 size={20} />
         </button>
         
         <div className="border-l border-gray-300 h-6"></div>
-        <button className="p-2 hover:bg-red-50 text-red-500 rounded-full font-bold transition-colors flex items-center gap-2 text-xs uppercase tracking-wider" onClick={clearMyCanvas}>
-            🗑️ Clear My Drawing
+        <button 
+            className="p-2 hover:bg-red-50 text-red-500 rounded-full transition-colors" 
+            onClick={clearMyCanvas}
+            title="Clear My Lines"
+        >
+            <Trash2 size={20} />
         </button>
         <div className="border-l border-gray-300 h-6"></div>
-        <button className="p-2 hover:bg-gray-100 rounded-full text-gray-500 font-bold transition-colors" onClick={() => navigate('/')}>Exit</button>
+        <button 
+            className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors" 
+            onClick={() => navigate('/')}
+            title="Exit Session"
+        >
+            <LogOut size={20} />
+        </button>
       </div>
 
       {/* Online Users List */}
