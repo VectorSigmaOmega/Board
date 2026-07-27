@@ -1,4 +1,6 @@
 server {
+    listen 80;
+    listen [::]:80;
     server_name __SERVER_NAME__;
 
     root __WEB_ROOT__;
@@ -9,7 +11,7 @@ server {
     }
 
     location /socket.io/ {
-        proxy_pass http://127.0.0.1:5000;
+        proxy_pass http://127.0.0.1:__API_PORT__;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -21,7 +23,7 @@ server {
     }
 
     location /rooms/ {
-        proxy_pass http://127.0.0.1:5000;
+        proxy_pass http://127.0.0.1:__API_PORT__;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -30,30 +32,22 @@ server {
     }
 
     location = /health {
-        proxy_pass http://127.0.0.1:5000;
+        proxy_pass http://127.0.0.1:__API_PORT__;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
     }
 
     location = /ready {
-        proxy_pass http://127.0.0.1:5000;
+        proxy_pass http://127.0.0.1:__API_PORT__;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
     }
 
-    listen 443 ssl;
-    ssl_certificate /etc/letsencrypt/live/__SERVER_NAME__/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/__SERVER_NAME__/privkey.pem;
-    include /etc/letsencrypt/options-ssl-nginx.conf;
-    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
-}
-
-server {
-    if ($host = __SERVER_NAME__) {
-        return 301 https://$host$request_uri;
+    location = /metrics {
+        allow 127.0.0.1;
+        deny all;
+        proxy_pass http://127.0.0.1:__API_PORT__;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
     }
-
-    listen 80;
-    server_name __SERVER_NAME__;
-    return 404;
 }

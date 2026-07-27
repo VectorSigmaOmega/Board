@@ -24,6 +24,7 @@ This rewrite targets a single API instance and a static web deployment.
 ## Required API environment
 
 - `PORT`
+- `HOST`
 - `CLIENT_ORIGIN`
 - `ROOM_REPOSITORY`
 - `ROOM_STORAGE_PATH` when using `file`

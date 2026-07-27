@@ -29,6 +29,7 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
       env: {
         PORT: "5000",
+        HOST: "127.0.0.1",
         NODE_ENV: "test",
         CLIENT_ORIGIN: "http://127.0.0.1:4173",
         ROOM_REPOSITORY: "memory",

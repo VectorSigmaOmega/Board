@@ -19,6 +19,7 @@ describe("socket transport", () => {
   beforeEach(async () => {
     const server = await createApiServer({
       PORT: 0,
+      HOST: "127.0.0.1",
       NODE_ENV: "test",
       CLIENT_ORIGIN: "http://localhost:4173",
       ROOM_REPOSITORY: "memory",

@@ -41,4 +41,4 @@ process.on("uncaughtException", (error) => {
   void shutdown("uncaughtException", 1);
 });
 
-await server.start(config.PORT);
+await server.start(config.PORT, config.HOST);

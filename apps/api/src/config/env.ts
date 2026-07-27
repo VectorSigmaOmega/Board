@@ -2,6 +2,7 @@ import { z } from "zod";
 
 const envSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(5000),
+  HOST: z.string().min(1).default("0.0.0.0"),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   CLIENT_ORIGIN: z.string().min(1).default("http://localhost:5173"),
   ROOM_REPOSITORY: z.enum(["memory", "file"]).optional(),

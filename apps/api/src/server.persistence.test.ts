@@ -44,6 +44,7 @@ describe("api persistence", () => {
     const storagePath = path.join(tempDir, "rooms.json");
     const config = {
       PORT: 0,
+      HOST: "127.0.0.1",
       NODE_ENV: "test" as const,
       CLIENT_ORIGIN: "http://localhost:4173",
       ROOM_REPOSITORY: "file" as const,

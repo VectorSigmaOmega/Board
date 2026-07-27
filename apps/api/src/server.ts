@@ -57,14 +57,14 @@ export async function createApiServer(config: AppConfig) {
     logger,
     metrics,
     roomService,
-    async start(port = config.PORT) {
+    async start(port = config.PORT, host = config.HOST) {
       await new Promise<void>((resolve) => {
-        httpServer.listen(port, resolve);
+        httpServer.listen(port, host, resolve);
       });
       const address = httpServer.address();
       const resolvedPort =
         typeof address === "object" && address && "port" in address ? address.port : port;
-      logger.info({ port: resolvedPort }, "Collaborate API listening");
+      logger.info({ host, port: resolvedPort }, "Collaborate API listening");
       return resolvedPort;
     },
     async stop() {

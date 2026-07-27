@@ -8,6 +8,7 @@ import { RoomService, RoomServiceError } from "./roomService.js";
 
 const baseConfig = {
   PORT: 5000,
+  HOST: "127.0.0.1",
   NODE_ENV: "test" as const,
   CLIENT_ORIGIN: "http://localhost:5173",
   ROOM_REPOSITORY: "memory" as const,

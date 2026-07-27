@@ -71,7 +71,7 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
-          ssh "${DEPLOY_USER}@${DEPLOY_HOST}" "mkdir -p '${DEPLOY_PATH}/source'"
+          ssh "${DEPLOY_USER}@${DEPLOY_HOST}" "sudo install -d -m 0755 -o '${DEPLOY_USER}' -g '${DEPLOY_USER}' '${DEPLOY_PATH}' '${DEPLOY_PATH}/source'"
 
       - name: Sync repository to server
         env:
@@ -105,4 +105,4 @@ jobs:
           DEPLOY_WEB_ROOT: ${{ secrets.DEPLOY_WEB_ROOT }}
         run: |
           ssh "${DEPLOY_USER}@${DEPLOY_HOST}" \
-            "COLLABORATE_APP_ROOT='${DEPLOY_PATH}' COLLABORATE_WEB_ROOT='${DEPLOY_WEB_ROOT}' bash '${DEPLOY_PATH}/source/scripts/deploy/remote-deploy.sh'"
+            "COLLABORATE_APP_ROOT='${DEPLOY_PATH}' COLLABORATE_WEB_ROOT='${DEPLOY_WEB_ROOT}' COLLABORATE_API_PORT='5010' bash '${DEPLOY_PATH}/source/scripts/deploy/remote-deploy.sh'"
