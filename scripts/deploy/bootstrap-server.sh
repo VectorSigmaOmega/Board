@@ -11,6 +11,9 @@ API_ENV="${COLLABORATE_API_ENV:-/etc/collaborate/api.env}"
 WEB_ENV="${COLLABORATE_WEB_ENV:-/etc/collaborate/web.env}"
 SITE_PATH="/etc/nginx/sites-available/${SERVER_NAME}"
 APP_USER="${COLLABORATE_APP_USER:-collaborate}"
+SSL_CERT="/etc/letsencrypt/live/${SERVER_NAME}/fullchain.pem"
+SSL_KEY="/etc/letsencrypt/live/${SERVER_NAME}/privkey.pem"
+NGINX_TEMPLATE="${SOURCE_DIR}/ops/nginx/collaborate.abhinash.dev.conf.template"
 
 sudo install -d -m 0755 -o ubuntu -g ubuntu "${APP_ROOT}" "${SOURCE_DIR}"
 sudo install -d -m 0750 -o "${APP_USER}" -g "${APP_USER}" /var/lib/collaborate
@@ -33,11 +36,15 @@ if [ ! -f "${WEB_ENV}" ]; then
   sudo chmod 0644 "${WEB_ENV}"
 fi
 
+if sudo test -f "${SSL_CERT}" && sudo test -f "${SSL_KEY}"; then
+  NGINX_TEMPLATE="${SOURCE_DIR}/ops/nginx/collaborate.abhinash.dev.ssl.conf.template"
+fi
+
 sed \
   -e "s|__SERVER_NAME__|${SERVER_NAME}|g" \
   -e "s|__WEB_ROOT__|${WEB_ROOT}|g" \
   -e "s|__API_PORT__|${API_PORT}|g" \
-  "${SOURCE_DIR}/ops/nginx/collaborate.abhinash.dev.conf.template" |
+  "${NGINX_TEMPLATE}" |
   sudo tee "${SITE_PATH}" >/dev/null
 
 sudo ln -sfn "${SITE_PATH}" "/etc/nginx/sites-enabled/${SERVER_NAME}"

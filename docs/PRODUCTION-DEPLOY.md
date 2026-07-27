@@ -22,6 +22,12 @@ This repository deploys to a single Ubuntu host with:
 3. Review and edit:
    - `/etc/collaborate/api.env`
    - `/etc/collaborate/web.env`
+4. Point DNS for `collaborate.abhinash.dev` at the server and issue TLS:
+   `sudo certbot --nginx -d collaborate.abhinash.dev`
+
+The deploy scripts install the HTTP nginx template until a Let's Encrypt certificate
+exists. After the certificate is present, deploys install the HTTPS template and
+redirect HTTP traffic to HTTPS.
 
 ## GitHub Actions secrets
 
